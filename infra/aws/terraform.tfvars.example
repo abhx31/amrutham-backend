@@ -1,0 +1,14 @@
+aws_region          = "ap-south-1"
+project             = "amrutam"
+environment         = "dev"
+container_image_tag = "replace-with-image-sha"
+api_desired_count    = 0
+worker_desired_count = 0
+db_multi_az         = false
+deletion_protection = false
+# certificate_arn   = "arn:aws:acm:ap-south-1:123456789012:certificate/..."
+# app_public_url    = "https://api.example.com"
+# email_transport  = "smtp"
+# email_from       = "no-reply@example.com"
+# otel_enabled         = true
+# otel_traces_endpoint = "https://collector.example.com/v1/traces"

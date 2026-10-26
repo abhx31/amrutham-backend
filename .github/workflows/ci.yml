@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate, test, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: amrutam_test
+          POSTGRES_USER: amrutam
+          POSTGRES_PASSWORD: amrutam
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U amrutam -d amrutam_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgresql://amrutam:amrutam@localhost:5432/amrutam_test
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Run PostgreSQL integration tests
+        run: npm run test:integration
+
+      - name: Build production JavaScript
+        run: npm run build
+
+      - name: Build production container
+        run: docker build --tag amrutam-backend:ci .
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.6
+
+      - name: Check Terraform formatting
+        run: terraform -chdir=infra/aws fmt -check -recursive
+
+      - name: Initialize Terraform without remote state
+        run: terraform -chdir=infra/aws init -backend=false
+
+      - name: Validate Terraform
+        run: terraform -chdir=infra/aws validate
